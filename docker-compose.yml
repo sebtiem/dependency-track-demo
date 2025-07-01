@@ -98,6 +98,7 @@ services:
       ALPINE_DATABASE_DRIVER: "org.postgresql.Driver"
       ALPINE_DATABASE_USERNAME: "dtrack"
       ALPINE_DATABASE_PASSWORD: "dtrack"
+      EXTRA_JAVA_OPTIONS: "-Xmx4G"
     deploy:
       resources:
         limits:
@@ -108,22 +109,25 @@ services:
         condition: on-failure
     ports:
     - '8081:8080'
+    healthcheck:
+      test: curl --fail -s http://127.0.0.1:8081/health || exit 1
+      interval: 1500s
+      start_period: 6000s
+      timeout: 10s
+      retries: 3
     volumes:
     - 'dtrack-data:/data'
     restart: unless-stopped
 
   frontend:
     image: dependencytrack/frontend
-    depends_on:
-      apiserver:
-        condition: service_healthy
     environment:
       # The base URL of the API server.
       # NOTE:
       #   * This URL must be reachable by the browsers of your users.
       #   * The frontend container itself does NOT communicate with the API server directly, it just serves static files.
       #   * When deploying to dedicated servers, please use the external IP or domain of the API server.
-      API_BASE_URL: "http://localhost:8081"
+      API_BASE_URL: "https://${PUBLIC_DOMAIN}/api"
       # OIDC_ISSUER: ""
       # OIDC_CLIENT_ID: ""
       # OIDC_SCOPE: ""
@@ -141,15 +145,15 @@ services:
       POSTGRES_DB: "dtrack"
       POSTGRES_USER: "dtrack"
       POSTGRES_PASSWORD: "dtrack"
+      PGDATA: "/var/lib/postgresql/data/db-files"
     healthcheck:
       test: [ "CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}" ]
       interval: 5s
       timeout: 3s
       retries: 3
     volumes:
-    - "postgres-data:/var/lib/postgresql/data"
+    - "/dependencytrack-data:/var/lib/postgresql/data"
     restart: unless-stopped
 
 volumes:
   dtrack-data: {}
-  postgres-data: {}
